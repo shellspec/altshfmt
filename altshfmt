@@ -4,7 +4,8 @@ set -eu
 
 VERSION=0.1.0 URL="https://github.com/shellspec/altshfmt"
 TMPBASE='' COLOR='' SHFMT=''
-list='' diff='' write='' passthrough='' filename='' help='' hasflag=''
+list='' diff='' write='' find='' tojson='' filename='' help=''
+hasflags='' haspaths=''
 
 SHELLSPEC_DSL_EXAMPLE_GROUP='([fx]?(ExampleGroup|Describe|Context))'
 SHELLSPEC_DSL_EXAMPLE='([fx]?(Example|Specify|It))'
@@ -207,7 +208,7 @@ optparse() {
   OPTARG='' OPTIND=1 i=$(($# + 1))
   while [ $# -gt 0 ]; do
     n=1
-    case $1 in (-*) hasflag=1; esac
+    case $1 in (-*) hasflags=1; esac
     case $1 in
       -[!-]* | --[!-]*)
         case ${1#"${1%%[!-]*}"} in
@@ -217,11 +218,16 @@ optparse() {
           filename) [ $# -gt 1 ] && filename=$2 && n=2 ;;
           filename=*) filename=${1#*=} ;;
           i | ln) [ $# -gt 1 ] && n=2 ;;
-          f | tojson) passthrough=1 ;;
+          f) find=1 ;;
+          tojson) tojson=1 ;;
           h | help) help=1 ;;
         esac
         ;;
-      *) break ;;
+      *)
+        [ "$1" = "-" ] && [ $# -eq 1 ] && return 0
+        haspaths=1
+        break
+        ;;
     esac
     while [ "$n" -gt 0 ] && n=$((n - 1)); do
       OPTARG="$OPTARG \"\${$((i - $#))}\""
@@ -319,6 +325,10 @@ altshfmt_files() {
   ret=0
   while [ $i -lt $# ] && i=$((i + 1)); do
     eval "origfile=\"\${$i}\""
+    if [ "$origfile" = "-" ] && [ ! -e "$origfile" ]; then
+      shfmt - -
+      exit 1
+    fi
     altshfmt_find "$origfile" | (
       ret=0
       while IFS= read -r origfile; do
@@ -350,11 +360,11 @@ TMPBASE=$(mktemp -d)
 optparse "$@"
 eval "set -- $OPTARG"
 
-if [ "$passthrough" ]; then
+if [ "${find}${tojson}" ]; then
   shfmt "$@"
 elif [ "$OPTIND" -le $# ]; then
   altshfmt_files "$OPTIND" "$@"
-elif [ -t 0 ] && [ "$hasflag" ]; then
+elif [ -t 0 ] && [ "$hasflags" ]; then
   shfmt "$@"
   if [ "$help" ]; then
     echo ""

@@ -145,13 +145,13 @@ Describe "altshfmt"
 
     It "supports the -f flag"
       When call _optparse -f -x arg1 arg2
-      The variable passthrough should eq 1
+      The variable find should eq 1
       The output should eq "3: -f -x arg1 arg2"
     End
 
     It "supports the -tojson flag"
       When call _optparse -tojson -x arg1 arg2
-      The variable passthrough should eq 1
+      The variable tojson should eq 1
       The output should eq "3: -tojson -x arg1 arg2"
     End
 
