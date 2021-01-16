@@ -215,6 +215,7 @@ optparse() {
           w) write=1 && shift && n=0 ;;
           d) diff=1 && shift && n=0 ;;
           filename) [ $# -gt 1 ] && filename=$2 && n=2 ;;
+          filename=*) filename=${1#*=} ;;
           i | ln) [ $# -gt 1 ] && n=2 ;;
           f | tojson) passthrough=1 ;;
           h | help) help=1 ;;
