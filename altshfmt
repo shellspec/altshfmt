@@ -321,7 +321,7 @@ altshfmt_files() {
     altshfmt_find "$origfile" | (
       ret=0
       while IFS= read -r origfile; do
-        altshfmt_files_ "$@" || ret=$?
+        altshfmt_files_ "$origfile" "$@" || ret=$?
       done
       exit "$ret"
     ) || ret=$?
@@ -329,6 +329,8 @@ altshfmt_files() {
   return "$ret"
 }
 altshfmt_files_() {
+  origfile=$1
+  shift
   eval "set -- $cmd"
   altshfmt_file "$origfile" "$origfile" "$@"
 }
