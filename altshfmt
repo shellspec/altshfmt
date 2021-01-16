@@ -1,0 +1,365 @@
+#!/bin/sh
+
+set -eu
+
+VERSION=0.1.0 URL="https://github.com/shellspec/altshfmt"
+TMPBASE='' COLOR='' SHFMT=''
+list='' diff='' write='' passthrough='' filename='' help='' hasflag=''
+
+SHELLSPEC_DSL_EXAMPLE_GROUP='([fx]?(ExampleGroup|Describe|Context))'
+SHELLSPEC_DSL_EXAMPLE='([fx]?(Example|Specify|It))'
+SHELLSPEC_DSL_DATA='(Data(:raw|:expand|))'
+SHELLSPEC_DSL_ONLINE_DATA='(Data[[:space:]]+[[:alnum:]_<'\''"])'
+SHELLSPEC_DSL_PARAMETERS='(Parameters(:block|:dynamic|:matrix|:value|))'
+SHELLSPEC_DSL_MOCK='(Mock)'
+SHELLSPEC_DSL_BEGIN="$SHELLSPEC_DSL_EXAMPLE_GROUP|$SHELLSPEC_DSL_EXAMPLE|$SHELLSPEC_DSL_DATA|$SHELLSPEC_DSL_PARAMETERS|$SHELLSPEC_DSL_MOCK"
+SHELLSPEC_DSL_END='(End)'
+
+SHPEC_DSL_BEGIN='(describe|it)'
+SHPEC_DSL_END='(end)'
+
+readlinkf() {
+  [ "${1:-}" ] || return 1
+  max_symlinks=40
+  CDPATH='' # to avoid changing to an unexpected directory
+
+  target=$1
+  [ -e "${target%/}" ] || target=${1%"${1##*[!/]}"} # trim trailing slashes
+  [ -d "${target:-/}" ] && target="$target/"
+
+  cd -P . 2>/dev/null || return 1
+  while [ "$max_symlinks" -ge 0 ] && max_symlinks=$((max_symlinks - 1)); do
+    if [ ! "$target" = "${target%/*}" ]; then
+      case $target in
+        /*) cd -P "${target%/*}/" 2>/dev/null || break ;;
+        *) cd -P "./${target%/*}" 2>/dev/null || break ;;
+      esac
+      target=${target##*/}
+    fi
+
+    if [ ! -L "$target" ]; then
+      target="${PWD%/}${target:+/}${target}"
+      printf '%s\n' "${target:-/}"
+      return 0
+    fi
+
+    # `ls -dl` format: "%s %u %s %s %u %s %s -> %s\n",
+    #   <file mode>, <number of links>, <owner name>, <group name>,
+    #   <size>, <date and time>, <pathname of link>, <contents of link>
+    # https://pubs.opengroup.org/onlinepubs/9699919799/utilities/ls.html
+    link=$(ls -dl -- "$target" 2>/dev/null) || break
+    target=${link#*" $target -> "}
+  done
+  return 1
+}
+
+self=$(readlinkf "$0")
+basedir=${self%/*}
+if [ "${ALTSHFMT_WINCWD:-}" ]; then
+  cd -- "${ALTSHFMT_WINCWD:-}"
+fi
+
+is_wsl() {
+  IFS= read -r osrelease </proc/sys/kernel/osrelease || return 1
+  case $osrelease in (*[Mm]icrosoft* | *WSL*) return 0; esac
+  return 1
+}
+
+detect_shfmt() {
+  if [ -e "${basedir%/}/shfmt" ]; then
+    SHFMT="${basedir%/}/shfmt"
+  elif [ "${ALTSHFMT_WINCWD:-}" ] || is_wsl 2>/dev/null; then
+    if [ -e "${basedir%/}/shfmt.exe" ]; then
+      SHFMT="${basedir%/}/shfmt.exe"
+    fi
+  fi
+  [ "$SHFMT" ] && return 0
+  SHFMT=$(which shfmt) && return 0
+  echo "shfmt: command not found" >&2
+  exit 1
+}
+detect_shfmt
+
+if [ "${FORCE_COLOR:-}" = "true" ]; then
+  COLOR=1
+elif [ "${TERM:-}" = "dumb" ]; then
+  :
+elif [ -t 1 ]; then
+  COLOR=1
+fi
+
+shfmt() {
+  "$SHFMT" "$@"
+}
+
+shell_directive() {
+  case $1 in (*[\#\$\&\(\)\*\;\<\>\?\[\\\]\`\{\|\}]*)
+    echo 'The following characters are not allowed' \
+      'in the shell directive: #$&()*;<>?[\]`{|}.' >&2
+    exit 1
+  esac
+  if ! ( eval "set -- $1" ) 2>/dev/null; then
+    printf '%s' "Invalid the shell directive: " >&2
+  fi
+  eval "set -- $1"
+  shell=$1 altsh=''
+  shift
+  while [ $# -gt 0 ]; do
+    case $1 in
+      altsh=*) altsh=${1#*=} ;;
+      *) ;; # Unknown attributes MUST be ignored
+    esac
+    shift
+  done
+}
+
+detect_syntax() {
+  awk '
+    BEGIN { buf = ""; syntax = "auto"; directive = ""; altsh = ""; detect = "" }
+    NR == 1 && /^#!/ {
+      syntax = $1
+      sub(/.*\//, "", syntax)
+      if (syntax == "env") syntax = $2
+    }
+    { buf = buf $0 "\n" }
+    /^#[[:space:]]*shell:.*/ {
+      sub(/.*shell:[[:space:]]*/, "")
+      if (match($1, /.*=.*/)) {
+        directive = syntax " " $0
+      } else {
+        directive = $0
+      }
+      exit
+    }
+    /^[[:space:]]*('"$SHELLSPEC_DSL_BEGIN"')([[:space:]].*|$)/ {
+      detect = "shellspec"
+    }
+    /^[[:space:]]*('"$SHELLSPEC_DSL_END"')([[:space:]].*|$)/ {
+      if (detect == "shellspec") { altsh = detect; exit }
+    }
+    /^[[:space:]]*('"$SHPEC_DSL_BEGIN"')([[:space:]].*|$)/ {
+      detect = "shpec"
+    }
+    /^[[:space:]]*('"$SHPEC_DSL_END"')([[:space:]].*|$)/ {
+      if (detect == "shpec") { altsh = detect; exit }
+    }
+    END {
+      if (!directive) directive = syntax
+      if (altsh) directive = directive " altsh=" altsh
+      # print directive > "/dev/tty"
+      print directive
+      printf "%s", buf
+      while(getline > 0) print $0
+    }
+  '
+}
+
+altshfmt() {
+  detect_syntax | {
+    read -r line
+    shell_directive "$line"
+    case $shell in
+      auto) ;;
+      sh) set -- -ln posix "$@" ;;
+      bash | mksh) set -- -ln "$shell" "$@" ;;
+      *) set -- -ln bash "$@" ;;
+    esac
+    # shellcheck disable=SC2016
+    case $altsh in
+      shellspec)
+        code='
+          /^[[:space:]]*('"$SHELLSPEC_DSL_END"')([[:space:]].*|$)/ {
+            print "} # @@altsh@@end"
+          }
+          { print }
+          /^[[:space:]]*('"$SHELLSPEC_DSL_ONLINE_DATA"').*/ {
+            next
+          }
+          /^[[:space:]]*('"$SHELLSPEC_DSL_BEGIN"')([[:space:]].*|$)/ {
+            while(match($0, /.*\\$/)) { getline; print }
+            print "{ # @@altsh@@begin"
+          }
+        '
+        ;;
+      shpec)
+        code='
+          /^[[:space:]]*('"$SHPEC_DSL_END"')([[:space:]].*|$)/ {
+            print "} # @@altsh@@end"
+          }
+          { print }
+          /^[[:space:]]*('"$SHPEC_DSL_BEGIN"')([[:space:]].*|$)/ {
+            while(match($0, /.*\\$/)) { getline; print }
+            print "{ # @@altsh@@begin"
+          }
+        '
+        ;;
+      *) code="" ;;
+    esac
+    if [ "$code" ]; then
+      awk "$code" | shfmt "$@" | grep -v "# @@altsh@@"
+    else
+      shfmt "$@"
+    fi
+  }
+}
+
+optparse() {
+  OPTARG='' OPTIND=1 i=$(($# + 1))
+  while [ $# -gt 0 ]; do
+    n=1
+    case $1 in (-*) hasflag=1; esac
+    case $1 in
+      -[!-]* | --[!-]*)
+        case ${1#"${1%%[!-]*}"} in
+          l) list=1 && shift && n=0 ;;
+          w) write=1 && shift && n=0 ;;
+          d) diff=1 && shift && n=0 ;;
+          filename) [ $# -gt 1 ] && filename=$2 && n=2 ;;
+          i | ln) [ $# -gt 1 ] && n=2 ;;
+          f | tojson) passthrough=1 ;;
+          h | help) help=1 ;;
+        esac
+        ;;
+      *) break ;;
+    esac
+    while [ "$n" -gt 0 ] && n=$((n - 1)); do
+      OPTARG="$OPTARG \"\${$((i - $#))}\""
+      OPTIND=$((OPTIND + 1))
+      shift
+    done
+  done
+  while [ $# -gt 0 ]; do
+    OPTARG="$OPTARG \"\${$((i - $#))}\""
+    shift
+  done
+}
+
+pretty() {
+  IFS= read -r line
+  IFS= read -r line
+  printf "%s\n" "--- ${1}.orig"
+  printf "%s\n" "+++ $1"
+  if [ "$COLOR" ]; then
+    range="\033[36m" deleted="\033[31m" added="\033[32m" reset="\033[m"
+  else
+    range="" deleted="" added="" reset=""
+  fi
+  while IFS= read -r line; do
+    case $line in
+      @@*) printf "${range}%s${reset}\n" "$line" ;;
+      -*) printf "${deleted}%s${reset}\n" "$line" ;;
+      +*) printf "${added}%s${reset}\n" "$line" ;;
+      *) printf "%s\n" "$line" ;;
+    esac
+  done
+  echo
+}
+
+altshfmt_find() {
+  if [ -d "$1" ]; then
+    case $SHFMT in
+      *.exe) shfmt -f "$1" | sed 's|\\|/|g' ;;
+      *) shfmt -f "$1" ;;
+    esac
+  else
+    printf '%s\n' "$1"
+  fi
+}
+
+check_syntax() {
+  shfmt < "$1" >/dev/null
+}
+
+altshfmt_file() {
+  origfile=$1 && filename=$2 && shift 2
+  newfile="$TMPBASE/new" changed=''
+  if [ -f "$origfile" ]; then
+    # The reason for doing the syntax check first is to output the correct line number.
+    check_syntax "$origfile"
+    altshfmt "$@" < "$origfile" > "$newfile" || return $?
+  else
+    altshfmt "$@" "$origfile" < /dev/null > "$newfile" || return $?
+  fi
+
+  if [ "$list" ] || [ "$diff" ]; then
+    cmp -s "$origfile" "$newfile" || changed=1
+  fi
+
+  if [ "$list" ] && [ "$changed" ]; then
+    printf '%s\n' "$filename"
+  fi
+
+  if [ "$diff" ] && [ "$changed" ]; then
+    diff -u "$origfile" "$newfile" | pretty "$filename"
+  fi
+
+  if [ "$write" ]; then
+    if [ -s "$origfile" ] && [ ! -s "$newfile" ]; then
+      echo "Something's wrong (the output is empty)." >&2
+      exit 1
+    fi
+    cp "$newfile" "$origfile"
+  fi
+
+  if [ "$diff" ] && [ "$changed" ]; then
+    return 1
+  fi
+
+  if [ ! "${list}${diff}${write}" ]; then
+    cat "$newfile"
+  fi
+}
+
+altshfmt_files() {
+  cmd="" i=1
+  while [ $i -lt "$1" ] && i=$((i + 1)); do
+    cmd="$cmd \"\${$i}\""
+  done
+  ret=0
+  while [ $i -lt $# ] && i=$((i + 1)); do
+    eval "origfile=\"\${$i}\""
+    altshfmt_find "$origfile" | (
+      ret=0
+      while IFS= read -r origfile; do
+        altshfmt_files_ "$@" || ret=$?
+      done
+      exit "$ret"
+    ) || ret=$?
+  done
+  return "$ret"
+}
+altshfmt_files_() {
+  eval "set -- $cmd"
+  altshfmt_file "$origfile" "$origfile" "$@"
+}
+
+cleanup() {
+  if [ "$TMPBASE" ] && [ -d "$TMPBASE" ]; then
+    rm -rf "$TMPBASE"
+  fi
+}
+
+${__SOURCED__:+return}
+
+trap cleanup INT TERM EXIT
+TMPBASE=$(mktemp -d)
+
+optparse "$@"
+eval "set -- $OPTARG"
+
+if [ "$passthrough" ]; then
+  shfmt "$@"
+elif [ "$OPTIND" -le $# ]; then
+  altshfmt_files "$OPTIND" "$@"
+elif [ -t 0 ] && [ "$hasflag" ]; then
+  shfmt "$@"
+  if [ "$help" ]; then
+    echo ""
+    echo "Integrated with altshfmt v$VERSION."
+    echo "For more information, see $URL."
+  fi
+else
+  origfile="$TMPBASE/orig"
+  cat > "$origfile"
+  altshfmt_file "$origfile" "${filename:-"<standard input>"}" "$@"
+fi
