@@ -210,7 +210,7 @@ optparse() {
     n=1
     case $1 in (-*) hasflags=1; esac
     case $1 in
-      -[!-]* | --[!-]*)
+      -[!-]* | --[!-]* | --)
         case ${1#"${1%%[!-]*}"} in
           l) list=1 && shift && n=0 ;;
           w) write=1 && shift && n=0 ;;
