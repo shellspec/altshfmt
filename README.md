@@ -21,7 +21,7 @@ The **`altshfmt`** is an experimental tool for formatting AltSH (alternative she
 ## Requirements
 
 * [shfmt][shfmt-releases] v3.2.1
-* Basic commands (`awk`, `cat`, `cmp`, `cp`, `diff`, `grep`, `ls`, `mktemp`, `rm`, `which`)
+* Basic commands (`awk`, `cat`, `cmp`, `cp`, `diff`, `grep`, `ls`, `mktemp`, `rm`, `sed`, `which`)
 
 ## How to use
 
