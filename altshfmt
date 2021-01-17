@@ -360,7 +360,9 @@ TMPBASE=$(mktemp -d)
 optparse "$@"
 eval "set -- $OPTARG"
 
-if [ "${find}${tojson}" ]; then
+if [ "$find" ] && [ "$haspaths" ]; then
+  shfmt "$@"
+elif [ "$tojson" ]; then
   shfmt "$@"
 elif [ "$OPTIND" -le $# ]; then
   altshfmt_files "$OPTIND" "$@"
