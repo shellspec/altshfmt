@@ -2,7 +2,7 @@
 
 The **`altshfmt`** is an experimental tool for formatting AltSH (alternative shell script) with extended syntax that cannot be formatted correctly by [shfmt][shfmt]. This is implemented as a wrapper for `shfmt`.
 
-**Currently supported syntax**: [ShellSpec][shellspec], [shpec](shpec)
+**Currently supported syntax**: [ShellSpec][shellspec], [shpec][shpec]
 
 [altshfmt-releases]: https://github.com/shellspec/altshfmt/releases
 [shfmt]: https://github.com/mvdan/sh#shfmt
@@ -50,7 +50,7 @@ WSL (Windows 10, version 1803 and later) or [busybox-w32][busybox-w32] is requir
 
 ### Using with VSCode
 
-Use the [shell-format][shell-format] extension.
+Use the [shell-format][shell-format] ([github](https://github.com/foxundermoon/vs-shell-format)) extension.
 
 * Install the shell-format extension and change `shellformat.path` in `settings.json` to the path to the `altshfmt` (or `altshfmt.bat` for windows).
 
