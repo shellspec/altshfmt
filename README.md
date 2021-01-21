@@ -2,15 +2,17 @@
 
 The **`altshfmt`** is an experimental tool for formatting AltSH (alternative shell script) with extended syntax that cannot be formatted correctly by [shfmt][shfmt]. This is implemented as a wrapper for `shfmt`.
 
-**Currently supported syntax**: [ShellSpec][shellspec], [shpec][shpec]
+**Currently supported syntax**: [ShellSpec][shellspec], [shpec][shpec], [modernish][modernish]
 
 [altshfmt-releases]: https://github.com/shellspec/altshfmt/releases
 [shfmt]: https://github.com/mvdan/sh#shfmt
 [shfmt-releases]: https://github.com/mvdan/sh/releases
 [busybox-w32]: https://frippery.org/busybox
+[shell-format]: https://marketplace.visualstudio.com/items?itemName=foxundermoon.shell-format
+
 [shellspec]: https://github.com/shellspec/shellspec
 [shpec]: https://github.com/rylnd/shpec
-[shell-format]: https://marketplace.visualstudio.com/items?itemName=foxundermoon.shell-format
+[modernish]: https://github.com/modernish/modernish
 
 ## **Use it at your own risk**
 
@@ -83,7 +85,7 @@ Usage: `shell: [<shell>] [altsh=<syntax>]`
     * `bash`: implies `-ln bash`
     * `mksh`: implies `-ln mksh`
     * Others: implies `-ln bash`
-* `syntax`: `shellspec`, `shpec`
+* `syntax`: `shellspec`, `shpec`, `modernish`
   * Unspecified: Treat it as a pure shell script
   * Others: Treat it as a pure shell script
 
