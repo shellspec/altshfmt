@@ -83,6 +83,28 @@ Describe "altshfmt"
           The line 1 should eq "bash"
           The lines of output should eq 3
         End
+
+        Data
+          #|#!  /bin/bash   arg
+          #|script
+        End
+
+        Specify "Allow spaces in shebang"
+          When call detect_syntax
+          The line 1 should eq "bash"
+          The lines of output should eq 3
+        End
+
+        Data
+          #|#!  /usr/bin/env   /bin/bash   arg
+          #|script
+        End
+
+        Specify "Allow spaces in shebang with env command"
+          When call detect_syntax
+          The line 1 should eq "bash"
+          The lines of output should eq 3
+        End
       End
 
       Context "if shellspec DSL is found"

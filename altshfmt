@@ -117,19 +117,17 @@ shell_directive() {
 detect_syntax() {
   awk '
     BEGIN { buf = ""; syntax = "auto"; directive = ""; altsh = ""; detect = "" }
-    NR == 1 && /^#!/ {
-      syntax = $1
+    NR == 1 && /^#![[:space:]]*\// {
+      line=$0
+      sub(/#![[:space:]]+/, "")
+      syntax = match($1, /.*\/env$/) ? $2 : $1
       sub(/.*\//, "", syntax)
-      if (syntax == "env") syntax = $2
+      $0=line
     }
     { buf = buf $0 "\n" }
     /^#[[:space:]]*shell:.*/ {
       sub(/.*shell:[[:space:]]*/, "")
-      if (match($1, /.*=.*/)) {
-        directive = syntax " " $0
-      } else {
-        directive = $0
-      }
+      directive = (match($1, /.*=.*/) ? syntax " " : "") $0
       exit
     }
     /^[[:space:]]*('"$SHELLSPEC_DSL_BEGIN"')([[:space:]].*|$)/ {
