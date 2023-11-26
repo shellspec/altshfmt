@@ -9,9 +9,9 @@ hasflags='' haspaths=''
 
 SHELLSPEC_DSL_EXAMPLE_GROUP='([fx]?(ExampleGroup|Describe|Context))'
 SHELLSPEC_DSL_EXAMPLE='([fx]?(Example|Specify|It))'
-SHELLSPEC_DSL_DATA='(Data(:raw|:expand|))'
+SHELLSPEC_DSL_DATA='(Data(:raw|:expand)?)'
 SHELLSPEC_DSL_ONLINE_DATA='(Data[[:space:]]+[[:alnum:]_<'\''"])'
-SHELLSPEC_DSL_PARAMETERS='(Parameters(:block|:dynamic|:matrix|:value|))'
+SHELLSPEC_DSL_PARAMETERS='(Parameters(:block|:dynamic|:matrix|:value)?)'
 SHELLSPEC_DSL_MOCK='(Mock)'
 SHELLSPEC_DSL_BEGIN="$SHELLSPEC_DSL_EXAMPLE_GROUP|$SHELLSPEC_DSL_EXAMPLE|$SHELLSPEC_DSL_DATA|$SHELLSPEC_DSL_PARAMETERS|$SHELLSPEC_DSL_MOCK"
 SHELLSPEC_DSL_END='(End)'
